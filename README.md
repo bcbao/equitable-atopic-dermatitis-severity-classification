@@ -1,4 +1,4 @@
-# AD skin-tone pipeline
+# Equitable Atopic Dermatitis Severity Classification
 
 Python/PyTorch implementation of the methods described in
 *"Reducing Skin-Tone Bias in AI-Based Atopic Dermatitis Diagnosis: Class-Balanced Transfer Learning with Generative Data Augmentation"*.
