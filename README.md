@@ -1,51 +1,56 @@
-# AD skin-tone pipeline — code viết lại theo bài báo
+# AD skin-tone pipeline
 
-Code Python/PyTorch viết lại theo phần **Methods** của bài
+Python/PyTorch implementation of the methods described in
 *"Reducing Skin-Tone Bias in AI-Based Atopic Dermatitis Diagnosis: Class-Balanced Transfer Learning with Generative Data Augmentation"*.
 
-> Đây là bản **dựng lại từ mô tả trong bài**, không phải code gốc. Chạy lại trên dữ liệu thật sẽ cho số liệu gần nhưng **không trùng khớp tuyệt đối** với số trong bản thảo (seed, chia fold, chi tiết không ghi trong Methods). Nếu số mới khác, cần cập nhật lại số trong bài.
+The pipeline covers preprocessing, patient-level cross-validation, three ImageNet-pretrained backbones (VGG16, InceptionV3, MobileNetV2), class-imbalance handling (LDAM-DRW with class-balanced sampling), skin-tone-targeted style-transfer augmentation for Fitzpatrick IV–VI, clinical metadata fusion, domain-adversarial adaptation, calibration and fairness evaluation, the AD Topographic Severity Score (AD-TSS), and INT8 TensorFlow Lite export for edge deployment.
 
-## Cấu trúc
+> **Data availability.** Patient images and clinical metadata are not included in this repository. Only code and a metadata template are provided.
+>
+> **Note.** This code implements the procedures described in the Methods section. Re-running it may give results that differ slightly from the published values because of random seeds, fold assignment, hardware and library versions.
 
-| File | Mục trong bài |
+## Repository structure
+
+| File | Manuscript section |
 |---|---|
-| `src/adpipe/preprocess.py` | 2.4 Shades-of-Gray, DullRazor, cắt ROI |
-| `src/adpipe/data.py` | 2.3, 2.5, 2.9 metadata, chia fold theo bệnh nhân, mã hoá biến lâm sàng, sampler cân bằng lớp |
-| `src/adpipe/models.py` | 2.6, 2.9, 2.10 VGG16 / InceptionV3 / MobileNetV2, late fusion, nhánh domain-adversarial (GRL) |
-| `src/adpipe/losses.py` | 2.7 LDAM-DRW |
-| `src/adpipe/train.py` | 2.6–2.10 huấn luyện 1 fold (đóng băng 10 epoch → fine-tune ≤60 epoch, early stopping) |
-| `src/adpipe/style_augment.py` | 2.8 neural style transfer sang tông da Fitzpatrick IV–VI + kiểm tra hình thái |
-| `src/adpipe/metrics.py` | 2.11 macro-F1, AUROC, ECE, Brier, NRI, temperature scaling, khoảng cách công bằng |
-| `src/adpipe/stats.py` | 2.13 bootstrap theo bệnh nhân, paired bootstrap, DeLong, McNemar |
-| `src/adpipe/adtss.py` | AD-TSS (Hình 2E) |
-| `src/adpipe/topographic.py` | Bản đồ topographic 3D (Hình 2A–D) |
-| `scripts/00_table1_qc.py` | Bảng 1 |
-| `scripts/01…08_*.py` | Các bước chạy theo thứ tự (xem `run_all.sh`) |
-| `configs/default.yaml` | Toàn bộ siêu tham số + các biến thể baseline / full / ablation |
+| `src/adpipe/preprocess.py` | 2.4 Shades-of-Gray colour constancy, DullRazor artifact removal, ROI cropping |
+| `src/adpipe/data.py` | 2.3, 2.5, 2.9 Metadata loading, patient-level folds, clinical variable encoding, class-balanced sampler |
+| `src/adpipe/models.py` | 2.6, 2.9, 2.10 VGG16 / InceptionV3 / MobileNetV2, late metadata fusion, domain-adversarial head (GRL) |
+| `src/adpipe/losses.py` | 2.7 LDAM loss with deferred re-weighting (DRW) |
+| `src/adpipe/train.py` | 2.6–2.10 Training of one fold (10 frozen epochs → fine-tuning up to 60 epochs, early stopping) |
+| `src/adpipe/style_augment.py` | 2.8 Neural style transfer to Fitzpatrick IV–VI skin tone with morphology check |
+| `src/adpipe/metrics.py` | 2.11 Macro-F1, AUROC, ECE, Brier score, NRI, temperature scaling, fairness gaps |
+| `src/adpipe/stats.py` | 2.13 Patient-level bootstrap, paired bootstrap, DeLong test, McNemar test |
+| `src/adpipe/adtss.py` | AD-TSS (Fig. 2E) |
+| `src/adpipe/topographic.py` | 3D topographic key-point maps (Fig. 2A–D) |
+| `src/adpipe/deploy.py` | 2.12 Loading trained checkpoints for export |
+| `scripts/00_table1_qc.py` | Table 1 (quality-control summary) |
+| `scripts/01…08_*.py` | Pipeline steps in order (see `run_all.sh`) |
+| `configs/default.yaml` | All hyperparameters and the baseline / full / ablation variants |
 
-## Cài đặt
+## Installation
 
 ```bash
 python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
-Nên chạy trên GPU (CUDA). Bài ghi Python 3.10 + PyTorch 2.1; code đã chạy thử với PyTorch 2.x mới hơn.
+A CUDA GPU is recommended. The manuscript used Python 3.10 and PyTorch 2.1; the code has also been tested with newer PyTorch 2.x releases.
 
-## Chuẩn bị dữ liệu
+## Data preparation
 
-1. Ảnh gốc để trong `data/raw/`.
-2. Tạo `data/metadata_raw.csv` theo mẫu `data/metadata_template.csv`, mỗi dòng 1 ảnh:
-   - `image_path`, `patient_id`, `severity` (mild/moderate/severe), `fitzpatrick` (1–6)
-   - `split`: `dev` (782 ảnh) hoặc `test` (142 ảnh, cơ sở/thiết bị khác)
-   - `site`, `device`: dùng cho domain adaptation
-   - `age`, `sex`, `anatomic_site`, `disease_duration_months`, `atopic_history` (để trống nếu thiếu)
-   - `phenotype` (tuỳ chọn): xerotic / erythematous / excoriated / lichenified / exudative — chỉ cần cho Hình 3D
-   - `roi_x, roi_y, roi_w, roi_h` (tuỳ chọn): khung ROI vẽ tay; nếu trống sẽ tự tìm ROI
-3. `data/qc_log.csv` (cho Bảng 1): mỗi ảnh đã thu thập (1.036 ảnh) với `excluded` (0/1) và `exclusion_reason`.
+1. Put the raw images in `data/raw/`.
+2. Create `data/metadata_raw.csv` following `data/metadata_template.csv`, one row per image:
+   - `image_path`, `patient_id`, `severity` (mild / moderate / severe), `fitzpatrick` (1–6)
+   - `split`: `dev` (development set) or `test` (held-out set from a different site/devices)
+   - `site`, `device`: acquisition site and device, used for domain adaptation
+   - `age`, `sex`, `anatomic_site`, `disease_duration_months`, `atopic_history` (leave blank if missing)
+   - `phenotype` (optional): xerotic / erythematous / excoriated / lichenified / exudative — only needed for Fig. 3D
+   - `roi_x, roi_y, roi_w, roi_h` (optional): manual ROI box; if blank, the ROI is detected automatically
+3. `data/qc_log.csv` (for Table 1): one row per collected image with `excluded` (0/1) and `exclusion_reason`.
 
-## Chạy
+## Usage
 
-Chạy toàn bộ: `bash run_all.sh`. Hoặc từng bước:
+Run the whole pipeline with `bash run_all.sh`, or step by step:
 
 ```bash
 python scripts/01_preprocess.py --metadata data/metadata_raw.csv --raw-root data/raw
@@ -55,30 +60,32 @@ python scripts/03_run_cv.py --backbone mobilenet_v2 --variant baseline
 python scripts/04_evaluate.py --compare mobilenet_v2__full:mobilenet_v2__baseline
 python scripts/05_figure3.py
 ```
-Đổi tham số bất kỳ không cần sửa file: `--set lr=3e-4 batch_size=16`.
+Any configuration value can be overridden from the command line, e.g. `--set lr=3e-4 batch_size=16`.
 
-Kết quả:
-- `runs/<backbone>__<variant>/` — model từng fold, dự đoán CV (`cv_predictions.csv`) và test (`test_predictions.csv`)
-- `results/cv_summary.csv` — mean ± SD qua 5 fold
-- `results/test_summary.csv` — tập test với 95% CI (bootstrap 1.000 lần theo bệnh nhân)
-- `results/comparisons.csv` — paired bootstrap, DeLong, McNemar, NRI, chênh lệch theo nhóm Fitzpatrick
-- `results/test_with_adtss__*.csv` — AD-TSS từng ảnh
+Outputs:
+- `runs/<backbone>__<variant>/` — fold models, out-of-fold predictions (`cv_predictions.csv`) and held-out test predictions (`test_predictions.csv`)
+- `results/cv_summary.csv` — mean ± SD across the 5 folds
+- `results/test_summary.csv` — held-out test metrics with 95% CIs (1,000 patient-level bootstrap resamples)
+- `results/comparisons.csv` — paired bootstrap, DeLong, McNemar, NRI and Fitzpatrick-stratified differences
+- `results/test_with_adtss__*.csv` — per-image AD-TSS
 
-## Những điểm bài không ghi rõ — code đã chọn như sau
+## Implementation choices
 
-| Điểm | Lựa chọn trong code | Đổi ở đâu |
+Some details are not fully specified in the manuscript. The defaults below can be changed in `configs/default.yaml`.
+
+| Item | Choice in this code | Where to change |
 |---|---|---|
-| Early stopping dựa trên tập nào | Tách 15% bệnh nhân **bên trong** fold huấn luyện (inner-val) để early stopping + temperature scaling; fold validation ngoài không bị đụng tới | `inner_val_frac` (đặt 0 = dùng luôn fold validation) |
-| Dự đoán trên tập test | Trung bình xác suất của 5 model fold | `test_mode: refit` = huấn luyện lại trên toàn bộ dev |
-| DRW "sau epoch 20" | Đếm epoch tổng (kể cả 10 epoch đóng băng) | `drw_start_epoch` |
-| Vừa sampler cân bằng vừa DRW | Bật cả hai như bài viết | `balanced_sampler`, `drw` |
-| Định nghĩa NRI | NRI phân loại đa lớp: với mỗi lớp thật, (tỉ lệ sai→đúng) − (tỉ lệ đúng→sai), lấy trung bình 3 lớp | `metrics.nri_multiclass` |
-| Ngưỡng AD-TSS | Làm tròn 2 chữ số rồi chia ≤0,33 / ≤0,66 / còn lại | `adtss.py` |
-| Hình 3D: "predicted phenotype" lấy từ đâu | Thêm nhánh phụ dự đoán hình thái (`aux_phenotype: true`); bin dự đoán = mức độ dự đoán + hình thái có xác suất cao hơn trong 2 hình thái của mức đó | `aux_phenotype`, `phenotype_bins` |
-| Ảnh tham chiếu tông da cho style transfer | Nên dùng thư mục mảng da thường của bệnh nhân IV–VI (`--style-dir`); nếu không có, lấy ảnh IV–VI trong tập dev | `02_style_augment.py` |
-| Fitzpatrick trong metadata fusion | Có đưa vào (như mục 2.9) | `meta_categorical` |
+| Data used for early stopping | 15% of patients held out *inside* each training fold (inner validation) for early stopping and temperature scaling; the outer validation fold is untouched | `inner_val_frac` (0 = use the outer fold) |
+| Held-out test predictions | Average of the probabilities of the 5 fold models | `test_mode: refit` = retrain on the full development set |
+| DRW "after epoch 20" | Counted over all epochs, including the 10 frozen epochs | `drw_start_epoch` |
+| Balanced sampling and DRW | Both enabled, as described | `balanced_sampler`, `drw` |
+| NRI definition | Multiclass categorical NRI: for each true class, (proportion moved wrong→right) − (proportion moved right→wrong), averaged over the 3 classes | `metrics.nri_multiclass` |
+| AD-TSS cut-offs | Score rounded to 2 decimals, then ≤ 0.33 / ≤ 0.66 / above | `adtss.py` |
+| Fig. 3D predicted phenotype | Auxiliary morphology head; predicted bin = predicted severity + the more probable of that severity's two phenotypes | `aux_phenotype`, `phenotype_bins` |
+| Style references for augmentation | Preferably a folder of normal-skin patches from Fitzpatrick IV–VI patients (`--style-dir`); otherwise IV–VI development images | `02_style_augment.py` |
+| Fitzpatrick type in metadata fusion | Included as an input variable (Section 2.9) | `meta_categorical` |
 
-## Chạy thử nhanh không cần dữ liệu thật
+## Quick test without real data
 
 ```bash
 python tests/make_dummy_data.py dummy 40
@@ -86,4 +93,4 @@ python scripts/01_preprocess.py --metadata dummy/metadata_raw.csv --raw-root dum
 python scripts/03_run_cv.py --backbone mobilenet_v2 --variant full \
   --set metadata_csv=dummy/metadata.csv image_root=dummy/pre pretrained=false freeze_epochs=1 finetune_epochs=1 num_workers=0
 ```
-Ảnh giả chỉ để kiểm tra code chạy, số liệu ra không có ý nghĩa.
+The dummy images only check that the code runs end-to-end; the resulting metrics are meaningless.
