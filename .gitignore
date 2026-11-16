@@ -1,0 +1,18 @@
+# patient data and generated outputs — never commit
+data/*
+!data/metadata_template.csv
+runs/
+results/
+figures/
+deploy/
+dummy/
+*.pt
+*.onnx
+*.tflite
+*.npy
+
+# python
+__pycache__/
+*.pyc
+.venv/
+.ipynb_checkpoints/
