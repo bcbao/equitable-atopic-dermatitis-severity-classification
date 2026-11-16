@@ -1,0 +1,5 @@
+image_path,patient_id,severity,easi,fitzpatrick,split,site,device,age,sex,anatomic_site,disease_duration_months,atopic_history,phenotype,roi_x,roi_y,roi_w,roi_h
+P001/IMG_0001.jpg,P001,mild,5.2,3,dev,UHS,iphone14,6,F,face,18,yes,xerotic,,,,
+P001/IMG_0002.jpg,P001,mild,5.2,3,dev,UHS,iphone14,6,F,arm,18,yes,erythematous,120,80,900,900
+P002/IMG_0003.jpg,P002,moderate,14.0,4,dev,UHS,galaxy_s23,27,M,leg,60,no,lichenified,,,,
+P101/IMG_0450.jpg,P101,severe,28.5,5,test,UMC3,canon_eos,34,F,trunk,96,,exudative,,,,

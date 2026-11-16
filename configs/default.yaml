@@ -1,0 +1,89 @@
+# Default configuration — values follow the Methods section of the manuscript.
+# Any key can be overridden from the command line:  --set lr=3e-4 finetune_epochs=40
+
+# ---------------- paths ----------------
+metadata_csv: data/metadata.csv        # one row per image (see data/metadata_template.csv)
+image_root: data/preprocessed          # folder with preprocessed crops (scripts/01_preprocess.py)
+output_dir: runs
+
+# ---------------- general ----------------
+seed: 42
+n_folds: 5                 # 2.5 patient-level 5-fold CV
+inner_val_frac: 0.15       # patients held out *inside* each training fold for early stopping
+                           # + temperature scaling (outer fold stays untouched)
+device: auto               # auto | cuda | mps | cpu
+num_workers: 4
+pretrained: true           # ImageNet weights
+amp: true                  # mixed precision on CUDA
+test_mode: ensemble        # ensemble = average the 5 fold models on the held-out test set
+                           # refit    = retrain on the whole development set, then predict test
+
+# ---------------- 2.6 model / optimisation ----------------
+backbone: mobilenet_v2     # vgg16 | inception_v3 | mobilenet_v2
+hidden: 256                # width of the fusion FC layer
+dropout: 0.3
+batch_size: 32
+lr: 1.0e-4                 # AdamW
+weight_decay: 1.0e-5
+freeze_epochs: 10          # backbone frozen
+finetune_epochs: 60        # then whole network, up to 60 epochs
+patience: 10               # early stopping on validation macro-F1
+
+# ---------------- 2.7 class imbalance ----------------
+balanced_sampler: true
+loss: ldam                 # ldam | ce
+ldam_max_m: 0.5
+ldam_s: 30.0
+drw: true
+drw_start_epoch: 20        # deferred re-weighting switched on after epoch 20
+drw_beta: 0.9999
+
+# ---------------- 2.8 skin-tone-targeted generative augmentation ----------------
+use_synthetic: true        # include rows with synthetic==1 (training folds only)
+
+# ---------------- 2.9 clinical metadata fusion ----------------
+use_metadata: true
+meta_numeric: [age, disease_duration_months]
+meta_categorical: [sex, anatomic_site, atopic_history, fitzpatrick]
+
+# ---------------- 2.10 domain adaptation ----------------
+domain_adaptation: true    # GRL head predicting site|device
+grl_max: 0.1               # coefficient ramped 0 -> 0.1
+domain_loss_weight: 1.0
+
+# ---------------- 2.11 calibration ----------------
+temperature_scaling: true
+
+# ---------------- Fig 3D (optional, exploratory) ----------------
+aux_phenotype: false       # auxiliary head predicting dominant morphology; needed for the 6x6 matrix
+pheno_loss_weight: 0.2
+phenotype_classes: [xerotic, erythematous, excoriated, lichenified, exudative]
+phenotype_bins:            # the 6 phenotype-severity bins shown in Fig 3D
+  - [mild, xerotic]
+  - [mild, erythematous]
+  - [moderate, excoriated]
+  - [moderate, lichenified]
+  - [severe, lichenified]
+  - [severe, exudative]
+
+# ---------------- experiment variants (overrides of the keys above) ----------------
+variants:
+  baseline:                # plain transfer learning
+    balanced_sampler: false
+    loss: ce
+    drw: false
+    use_synthetic: false
+    use_metadata: false
+    domain_adaptation: false
+    temperature_scaling: false
+  full: {}                 # everything on
+  no_ldam_drw:             # ablations
+    balanced_sampler: false
+    loss: ce
+    drw: false
+  no_style_aug:
+    use_synthetic: false
+  no_metadata:
+    use_metadata: false
+  no_domain_adapt:
+    domain_adaptation: false
