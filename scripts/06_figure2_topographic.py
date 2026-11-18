@@ -31,7 +31,7 @@ from adpipe.topographic import keypoints, plot_topographic, topographic_descript
 CAT_COLORS = {"mild-likely": "#2e9e3e", "moderate-likely": "#f0901e", "severe-likely": "#d01c1c"}
 
 
-def adtss_panel(fig, gs, labels, scores):
+def adtss_panel(fig, gs, labels, scores, illustrative=False):
     ax = fig.add_subplot(gs)
     ax.axis("off")
     ax.set_xlim(0, 1)
@@ -61,7 +61,8 @@ def adtss_panel(fig, gs, labels, scores):
         col = CAT_COLORS[lab.lower()]
         ax.text(cx, yb - 0.13, lab, color=col, fontsize=11.5, fontweight="bold", ha="center")
         ax.text(cx, yb - 0.19, rng, fontsize=10.5, ha="center")
-    ax.text(0.5, 0.29, "Example Derived AD-TSS from Panels A–D", fontsize=11, fontweight="bold", ha="center")
+    ax.text(0.5, 0.29, "Example AD-TSS for panels A–D" + (" (illustrative)" if illustrative else ""),
+            fontsize=11, fontweight="bold", ha="center")
     n = len(labels)
     for i, (lab, s) in enumerate(zip(labels, scores)):
         cx = (i + 0.5) / n
@@ -89,6 +90,8 @@ def main():
     ap.add_argument("--tss", nargs=4, type=float, default=None)
     ap.add_argument("--out", default="figures/figure2.png")
     ap.add_argument("--dpi", type=int, default=300)
+    ap.add_argument("--grad-threshold", type=float, default=0.04,
+                    help="fixed gradient threshold for key points (same for all images)")
     a = ap.parse_args()
     os.makedirs(os.path.dirname(a.out) or ".", exist_ok=True)
 
@@ -108,9 +111,13 @@ def main():
     fig = plt.figure(figsize=(14, 13))
     outer = fig.add_gridspec(3, 2, height_ratios=[1, 1, 1.15], hspace=0.08, wspace=0.08)
     desc = []
-    for i, (im, lab) in enumerate(zip(a.images, a.labels)):
-        img = cv2.imread(im)
-        kp = keypoints(img)
+    imgs = [cv2.imread(im) for im in a.images]
+    kps = [keypoints(img, grad_threshold=a.grad_threshold) for img in imgs]
+    allg = np.concatenate([k["g"] for k in kps if len(k["g"])]) if any(len(k["g"]) for k in kps) else np.array([0.1])
+    vmax = float(np.percentile(allg, 99))  # one colour scale for all panels so they are comparable
+    allz = np.concatenate([np.abs(k["z"]) for k in kps if len(k["z"])]) if any(len(k["z"]) for k in kps) else np.array([0.1])
+    zlim = float(np.ceil(np.percentile(allz, 99) * 20) / 20)  # one Z range for all panels
+    for i, (im, lab, img, kp) in enumerate(zip(a.images, a.labels, imgs, kps)):
         d = topographic_descriptors(kp)
         d.update({"panel": "ABCD"[i], "label": lab, "image": im})
         desc.append(d)
@@ -120,11 +127,11 @@ def main():
         ax_img.axis("off")
         ax_img.set_title(f"$\\bf{{{'ABCD'[i]}}}$   {lab}", loc="left", fontsize=12)
         ax3 = fig.add_subplot(sub[1], projection="3d")
-        sc = plot_topographic(ax3, kp, title="3D topographic map with key points")
-        cb = fig.colorbar(sc, ax=ax3, shrink=0.6, pad=0.16)
-        cb.set_label("Local Surface Gradient (a.u.)", fontsize=8)
+        sc = plot_topographic(ax3, kp, vmax=vmax, zlim=zlim, title=f"3D topographic map ({len(kp['x'])} key points)")
+        cb = fig.colorbar(sc, ax=ax3, shrink=0.6, pad=0.22)
+        cb.set_label("Local surface gradient (a.u.)", fontsize=8)
         ax3.tick_params(labelsize=7)
-    adtss_panel(fig, outer[2, :], a.labels, scores)
+    adtss_panel(fig, outer[2, :], a.labels, scores, illustrative=a.tss is not None)
     fig.savefig(a.out, dpi=a.dpi, bbox_inches="tight")
     pd.DataFrame(desc).to_csv(os.path.splitext(a.out)[0] + "_descriptors.csv", index=False)
     print(f"saved {a.out}")

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Methods 2.12 — export the deployment model to TensorFlow Lite (FP32 and INT8 PTQ).
 
-  python scripts/07_export_tflite.py --fold-dir runs/mobilenet_v2__full/fold0 \
+  python scripts/07_export_tflite.py --fold-dir runs/mobilenet_v2__full/fold1 \
       --metadata data/metadata.csv --image-root data/preprocessed --out deploy/
 
 Route: PyTorch -> ONNX -> TensorFlow SavedModel (onnx2tf, NHWC) -> TFLite.
