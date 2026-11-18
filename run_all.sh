@@ -10,10 +10,13 @@ python scripts/00_table1_qc.py --qc-log data/qc_log.csv --metadata data/metadata
 python scripts/01_preprocess.py --metadata data/metadata_raw.csv --raw-root data/raw \
        --out-root data/preprocessed --out-csv data/metadata.csv
 
-# 2. Skin-tone-targeted style-transfer augmentation (2.8)
-python scripts/02_style_augment.py --metadata data/metadata.csv --image-root data/preprocessed --method nst
-#    -> review data/synthetic_manifest.csv, mark rejected images, then:
-#    python scripts/02_style_augment.py --metadata data/metadata.csv --merge-only
+# 2. Skin-tone-targeted generative augmentation (2.8), CUDA GPU required
+#    2a. one LoRA adapter per split on Stable Diffusion v1.5 -> ./lora_fold_1 ... ./lora_fold_5
+python scripts/02a_train_lora.py --metadata data/metadata.csv --image-root data/preprocessed --out .
+#    2b. img2img generation from Fitzpatrick I-III training images with the split's own LoRA
+python scripts/02b_generate_synthetic.py --metadata data/metadata.csv --image-root data/preprocessed --lora-root .
+#    -> dermatologist review of data/synthetic_manifest.csv (mark rejected), then:
+#    python scripts/02b_generate_synthetic.py --metadata data/metadata.csv --merge-only
 
 # 3. 5-fold CV + held-out test for 3 backbones x baseline/full, plus ablations on MobileNetV2
 for BB in vgg16 inception_v3 mobilenet_v2; do
@@ -44,6 +47,6 @@ python scripts/05_figure3.py --results results --runs runs --out figures/figure3
 #        --predictions results/test_with_adtss__mobilenet_v2__full.csv --out figures/figure2.png
 
 # 7-8. INT8 TFLite export + benchmark (2.12)
-python scripts/07_export_tflite.py --fold-dir runs/mobilenet_v2__full/fold0 \
+python scripts/07_export_tflite.py --fold-dir runs/mobilenet_v2__full/fold1 \
        --metadata data/metadata.csv --image-root data/preprocessed --out deploy
 python scripts/08_benchmark_tflite.py --deploy-dir deploy --metadata data/metadata.csv --image-root data/preprocessed
