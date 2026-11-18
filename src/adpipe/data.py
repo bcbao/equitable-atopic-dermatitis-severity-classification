@@ -10,7 +10,8 @@ Expected metadata CSV columns (see data/metadata_template.csv):
   age, sex, anatomic_site, disease_duration_months, atopic_history
   phenotype       optional dominant morphology (xerotic, erythematous,
                   excoriated, lichenified, exudative) — only for Fig 3D
-  synthetic       0/1 (1 = style-transfer image, training only)
+  synthetic       0/1 (1 = generated image, Section 2.8; training only)
+  syn_fold        for synthetic rows: split (1–5) the image was generated for
   source_image    for synthetic rows: image it was generated from
 """
 from __future__ import annotations
@@ -91,12 +92,18 @@ def split_inner_val(train: pd.DataFrame, frac: float, seed: int):
     return rest.reset_index(drop=True), inner.reset_index(drop=True)
 
 
-def fold_frames(dev: pd.DataFrame, train_pids, val_pids, use_synthetic: bool):
-    """Synthetic images keep their source patient's ID, so they can only enter
-    the training side of a fold whose source patient is in training."""
+def fold_frames(dev: pd.DataFrame, train_pids, val_pids, use_synthetic: bool, fold_number=None):
+    """Training and validation frames of one split.
+
+    Synthetic images keep their source patient's ID and carry the number of
+    the split they were generated for (column syn_fold, 1–5). They enter only
+    the training subset of that split and never a validation fold."""
     train = dev[dev.patient_id.isin(train_pids)]
     if not use_synthetic:
         train = train[train.synthetic == 0]
+    elif "syn_fold" in train.columns and fold_number is not None:
+        syn_ok = pd.to_numeric(train["syn_fold"], errors="coerce") == fold_number
+        train = train[(train.synthetic == 0) | syn_ok]
     val = dev[dev.patient_id.isin(val_pids) & (dev.synthetic == 0)]
     return train.reset_index(drop=True), val.reset_index(drop=True)
 
