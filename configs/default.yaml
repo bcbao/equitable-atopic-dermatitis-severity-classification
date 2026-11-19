@@ -15,8 +15,8 @@ device: auto               # auto | cuda | mps | cpu
 num_workers: 4
 pretrained: true           # ImageNet weights
 amp: true                  # mixed precision on CUDA
-test_mode: ensemble        # ensemble = average the 5 fold models on the held-out test set
-                           # refit    = retrain on the whole development set, then predict test
+test_mode: refit           # refit = one final model trained on the whole development set (no ensembling);
+                           # ensemble = average the 5 fold models on the held-out test set
 
 # ---------------- 2.6 model / optimisation ----------------
 backbone: mobilenet_v2     # vgg16 | inception_v3 | mobilenet_v2
