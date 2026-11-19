@@ -65,7 +65,7 @@ python scripts/05_figure3.py
 Any configuration value can be overridden from the command line, e.g. `--set lr=3e-4 batch_size=16`.
 
 Outputs:
-- `runs/<backbone>__<variant>/` — fold models, out-of-fold predictions (`cv_predictions.csv`) and held-out test predictions (`test_predictions.csv`)
+- `runs/<backbone>__<variant>/` — fold models, the final model (`refit/`), out-of-fold predictions (`cv_predictions.csv`) and held-out test predictions (`test_predictions.csv`)
 - `results/cv_summary.csv` — mean ± SD across the 5 folds
 - `results/test_summary.csv` — held-out test metrics with 95% CIs (1,000 patient-level bootstrap resamples)
 - `results/comparisons.csv` — paired bootstrap, DeLong, McNemar, NRI and Fitzpatrick-stratified differences
@@ -78,7 +78,7 @@ Some details are not fully specified in the manuscript. The defaults below can b
 | Item | Choice in this code | Where to change |
 |---|---|---|
 | Data used for early stopping | 15% of patients held out *inside* each training fold (inner validation) for early stopping and temperature scaling; the outer validation fold is untouched | `inner_val_frac` (0 = use the outer fold) |
-| Held-out test predictions | Average of the probabilities of the 5 fold models | `test_mode: refit` = retrain on the full development set |
+| Held-out test predictions | One final model retrained on the whole development set (no ensembling); the 5 fold models are used only for cross-validation | `test_mode: ensemble` = average the 5 fold models instead |
 | DRW "after epoch 20" | Counted over all epochs, including the 10 frozen epochs | `drw_start_epoch` |
 | Balanced sampling and DRW | Both enabled, as described | `balanced_sampler`, `drw` |
 | NRI definition | Multiclass categorical NRI: for each true class, (proportion moved wrong→right) − (proportion moved right→wrong), averaged over the 3 classes | `metrics.nri_multiclass` |

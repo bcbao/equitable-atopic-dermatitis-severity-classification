@@ -47,6 +47,6 @@ python scripts/05_figure3.py --results results --runs runs --out figures/figure3
 #        --predictions results/test_with_adtss__mobilenet_v2__full.csv --out figures/figure2.png
 
 # 7-8. INT8 TFLite export + benchmark (2.12)
-python scripts/07_export_tflite.py --fold-dir runs/mobilenet_v2__full/fold1 \
+python scripts/07_export_tflite.py --fold-dir runs/mobilenet_v2__full/refit \
        --metadata data/metadata.csv --image-root data/preprocessed --out deploy
 python scripts/08_benchmark_tflite.py --deploy-dir deploy --metadata data/metadata.csv --image-root data/preprocessed
