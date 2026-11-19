@@ -7,8 +7,9 @@ held-out external test set.
 
 Outputs in runs/<backbone>__<variant>/ :
   cv_predictions.csv      out-of-fold predictions on the development set
-  test_predictions.csv    held-out test predictions (ensemble of fold models or refit)
+  test_predictions.csv    held-out test predictions from the final model (refit, default) or the fold ensemble
   fold*/model.pt, history.csv, meta_encoder.json
+  refit/                  final model trained on the whole development set
 """
 import argparse
 import os
@@ -84,8 +85,9 @@ def main():
 
     if len(test):
         if cfg["test_mode"] == "refit":
-            # synthetic images are split-specific, so the refit model uses real images only
-            train_all = dev[dev.synthetic == 0]
+            # final model: all development patients; when synthetic images are enabled, the retained
+            # synthetic images of every split are added (all were generated from development images only)
+            train_all = dev if cfg["use_synthetic"] else dev[dev.synthetic == 0]
             train_all, inner = split_inner_val(train_all.reset_index(drop=True), cfg["inner_val_frac"] or 0.15, cfg["seed"])
             log("\n=== refit on full development set ===")
             model, ctx, T, _ = train_fold(cfg, train_all, inner, cfg["image_root"],
